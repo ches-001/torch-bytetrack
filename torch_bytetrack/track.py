@@ -48,7 +48,7 @@ class Track:
         self.count_until_last_update += 1
 
     def update(self, kalman_filter: KalmanFilter, detection: torch.Tensor):
-        # boxes format (confidence, class_idx, x, y, w, h)
+        # boxes format (confidence, class_idx, x, y, a, h)
         self.mean, self.covar = kalman_filter.update(self.mean, self.covar, detection[2:])
         self.det_conf = detection[0].item()
         self.det_class = int(detection[1].item())
