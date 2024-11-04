@@ -34,7 +34,7 @@ The [ByteTrack Algorithm](https://arxiv.org/pdf/2110.06864) is a pretty interest
 
 # How to Use
 ```python
-from obj_tracker.bytetrack import ByteTrack
+from torch_bytetrack import ByteTrack
 
 tracker = ByteTrack()
 detections = mydetector(frame)
