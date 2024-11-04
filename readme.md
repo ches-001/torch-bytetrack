@@ -32,7 +32,7 @@ The [ByteTrack Algorithm](https://arxiv.org/pdf/2110.06864) is a pretty interest
 
 15. For detections in `DRemain` we initialize them as new tracks to be added to `T`.
 
-# HOW TO USE
+# How to Use
 ```python
 from obj_tracker.bytetrack import ByteTrack
 
