@@ -8,7 +8,7 @@ The [ByteTrack Algorithm](https://arxiv.org/pdf/2110.06864) is a pretty interest
 
 3. Seperate the low confidence detections `(DLow)` from the high confidence ones `(DHigh)` based on a threshold value $\tau$. If the iteration step is at the very first frame of the video, `T` is initialized with detections from `DHigh` and returned.
 
-4. Using the [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter), predict the next trajectory of each track
+4. Using the [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter), predict the next trajectory of each track. The Kalman filter used in this implementation uses a linear constant velocity model to project the current state in time, here the state is represented as $(x, y, a, h, vx, vy, va, vh)$ where $x$ and $y$ are box centers, $a$ is the aspect ratio and $h$ is height, and the rest are corresponding velocity components
 
 5. Compute the IoU (CIoU in this implementation) between each track and all current detections, this will result in an $m \mathbf{x} n$ matrix, where $m$ is the number of tracks in `T` and $n$ is the number of detections in the current frame
 
