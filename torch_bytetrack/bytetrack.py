@@ -46,27 +46,6 @@ class ByteTrack:
         covar = torch.tensor(std_pos, device=mean.device).pow(2).diag()
         return covar
 
-
-    def _initiate_track(self, measurement: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        mean = torch.concat([measurement, torch.zeros_like(measurement)], dim=0)
-        std_pos = [
-            self.std_weight_pos*measurement[3], 
-            self.std_weight_pos*measurement[3], 
-            1e-2, 
-            self.std_weight_pos*measurement[3]
-        ]
-        std_pos = torch.tensor(std_pos, device=measurement.device) * 2
-        std_pos[2] = 1e-2
-        std_vel = [
-            self.std_weight_vel*measurement[3], 
-            self.std_weight_vel*measurement[3], 
-            1e-5, 
-            self.std_weight_vel*measurement[3]
-        ]
-        std_vel = torch.tensor(std_vel, device=measurement.device) * 10
-        std_vel[2] = 1e-5
-        covar = torch.concat([std_pos, std_vel]).pow(2).diag()
-        return mean, covar
     
     def create_kf(self, **kf_kwargs) -> KalmanFilter:
         # given the measurements [x, y, a, h], thats would include velocity components
@@ -118,7 +97,7 @@ class ByteTrack:
         DHigh_ious = []
         for i in range(0, len(self._tracks)):
             self._tracks[i].predict(self.kalman_filter)
-            ious = compute_iou(self._tracks[i].to_xywh().unsqueeze(dim=0), DHigh[:, 2:], use_ciou=self.use_ciou)
+            ious = compute_iou(self._tracks[i].to_xywh(device).unsqueeze(dim=0), DHigh[:, 2:], use_ciou=self.use_ciou)
             DHigh_ious.append(ious)
         
         if len(DHigh_ious) > 0:
@@ -136,7 +115,7 @@ class ByteTrack:
 
             # update the track[i] with matching detections[j] from DHigh
             for i, j in DHigh_match_indexes:
-                self._tracks[i].update(self.kalman_filter, DHigh[j])
+                self._tracks[i].update(self.kalman_filter, self.__measurement_to_state_format(DHigh[j]))
 
             DRemain = DHigh[~torch.isin(torch.arange(0, DHigh.shape[0], 1, device=device), DHigh_match_indexes[:, 1])]
             TRemain_indexes = TRemain_indexes[~torch.isin(TRemain_indexes, DHigh_match_indexes[:, 0])]
@@ -144,7 +123,7 @@ class ByteTrack:
         # compute the IoU (CIoU) of tracks in TRemain with detections in DLow
         DLow_ious = []
         for i in TRemain_indexes:
-            ious = compute_iou(self._tracks[i].to_xywh().unsqueeze(dim=0), DLow[:, 2:], use_ciou=self.use_ciou)
+            ious = compute_iou(self._tracks[i].to_xywh(device).unsqueeze(dim=0), DLow[:, 2:], use_ciou=self.use_ciou)
             DLow_ious.append(ious)
             
         if len(DLow_ious) > 0:
@@ -158,7 +137,7 @@ class ByteTrack:
 
             # Update tracks from TRemain with assigned detections from DLow
             for i, j in DLow_match_indexes:
-                self._tracks[TRemain_indexes[i]].update(self.kalman_filter, DLow[j])
+                self._tracks[TRemain_indexes[i]].update(self.kalman_filter, self.__measurement_to_state_format(DLow[j]))
 
             # for tracks that were neither associated with detections from DHigh or DLow, we mark them
             # as lost
@@ -196,11 +175,43 @@ class ByteTrack:
         _filter = lambda track : (not track.is_lost()) and track.count_until_last_update < self.max_age
         self._tracks = list(filter(_filter, self._tracks))
 
+
+    def __measurement_to_state_format(self, measurement: torch.Tensor) -> torch.Tensor:
+        # convert (x, y, w, h) -> (x, y, a, h)
+        # convert (conf, cls_idx, x, y, w, h) -> (conf, cls_idx, x, y, a, h)
+        measurement = measurement.clone()
+        measurement[-2] /= measurement[-1]
+        return measurement
+    
+
+    def __init_track(self, measurement: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        measurement = self.__measurement_to_state_format(measurement)
+        mean = torch.concat([measurement, torch.zeros_like(measurement)], dim=0)
+        std_pos = [
+            self.std_weight_pos*measurement[3], 
+            self.std_weight_pos*measurement[3], 
+            1e-2, 
+            self.std_weight_pos*measurement[3]
+        ]
+        std_pos = torch.tensor(std_pos, device=measurement.device) * 2
+        std_pos[2] = 1e-2
+        std_vel = [
+            self.std_weight_vel*measurement[3], 
+            self.std_weight_vel*measurement[3], 
+            1e-5, 
+            self.std_weight_vel*measurement[3]
+        ]
+        std_vel = torch.tensor(std_vel, device=measurement.device) * 10
+        std_vel[2] = 1e-5
+        covar = torch.concat([std_pos, std_vel]).pow(2).diag()
+        return mean, covar
+    
+
     def __add_new_tracks(self, detections: torch.Tensor):
         for i in range(0, detections.shape[0]):
             self._last_track_id += 1
             det = detections[i]
-            mean, covar = self._initiate_track(det[2:])
+            mean, covar = self.__init_track(det[2:])
             new_track = Track(
                 track_id=self._last_track_id,
                 mean=mean,

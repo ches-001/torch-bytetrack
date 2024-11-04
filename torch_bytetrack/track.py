@@ -66,10 +66,13 @@ class Track:
 
     def is_lost(self): return self.status == TrackState.Lost
 
-    def to_ltrb(self) -> torch.Tensor:
-        box = self.mean[:4].unsqueeze(dim=0)
+    def to_ltrb(self, device: Union[str, torch.device]="cpu") -> torch.Tensor:
+        box = self.to_xywh(device).unsqueeze(dim=0)
         box = xywh2x1y1x2y2(box).squeeze()
-        return box.cpu()
+        return box
     
-    def to_xywh(self) -> torch.Tensor:
-        return self.mean[:4]
+    def to_xywh(self, device: Union[str, torch.device]="cpu") -> torch.Tensor:
+        # convert from (x, y, a, h) -> (x, y, w, h)
+        box = self.mean[:4].clone()
+        box[2] *= box[3]
+        return box.to(device)
