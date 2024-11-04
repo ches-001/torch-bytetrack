@@ -11,11 +11,29 @@ class ByteTrack:
             max_age: int=30,
             n_init: int=3,
             tau: float=0.6,
-            kf_kwargs: Optional[Dict[str, Any]]=None,
             std_weight_pos: float=1/20,
             std_weight_vel: float=1/160,
-            use_ciou: bool=False
+            use_ciou: bool=False,
+            kf_kwargs: Optional[Dict[str, Any]]=None
         ):
+        r"""
+        params
+        ----------------------
+        max_age(int):
+            max number of steps that a trajectory can be marked as lost before getting deleted
+        n_init(int):
+            number of steps before track gets confirmed
+        tau(float):
+            threshold for seperating high confidence detections from low confidence ones
+        std_weight_pos(float):
+            weight value of state vector positions in the kalman filter uncertainty matrices
+        std_weight_pos(float):
+            weight value of state vector velocities in the kalman filter uncertainty matrices
+        use_ciou(bool):
+            if set to True, the IoU metric will be CIoU (Complete IoU)
+        kf_kwargs:
+            Keyword arguments for initializing the kalman filter object.
+        """
         self.max_age = max_age
         self.n_init = n_init
         self.tau = tau
@@ -27,7 +45,7 @@ class ByteTrack:
         self.std_weight_vel = std_weight_vel
         self.use_ciou = use_ciou
         kf_kwargs = kf_kwargs or {}
-        self.kalman_filter = self.create_kf(**kf_kwargs)
+        self.kalman_filter = self._create_kf(**kf_kwargs)
 
 
     def _Q(self, mean: torch.Tensor):
@@ -47,7 +65,7 @@ class ByteTrack:
         return covar
 
     
-    def create_kf(self, **kf_kwargs) -> KalmanFilter:
+    def _create_kf(self, **kf_kwargs) -> KalmanFilter:
         # given the measurements [x, y, a, h], thats would include velocity components
         # so that it would be [x, y, a, h, vx, vy, va, vh]. We use a simple linear constant
         # velocity model, denoted by the expression x(t+1) = x(t) + (vx.t), where vx is constant
@@ -66,6 +84,23 @@ class ByteTrack:
 
 
     def update_tracks(self, detections: torch.Tensor, format: str="xywh") -> List[Track]:
+        r"""
+        get the tracks for each frame given the detections
+        
+        params
+        ----------------------
+        detections(torch.Tensor):
+            object detections at the current frame. This is expected to be in the format of 
+            (confidence, class_idx, x, y, w, h) or (confidence, class_idx, x1, y1, x2, y2).
+            an (n, 6) tensor is required, where n is the number of detections
+
+        format(str):
+            "xywh" (center_x, center_y, width and height) or "xyxy" (top, left, bottom, right corners)
+
+        return
+        ----------------------
+        all tracks (List[Track])
+        """
         # ByteTrack paper: https://arxiv.org/pdf/2110.06864
         # check out the paper, and the the pseudo code to follow through with this implementation
         # boxes format (confidence, class_idx, x, y, w, h) or (confidence, class_idx, x1, y1, x2, y2)
