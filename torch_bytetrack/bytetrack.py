@@ -140,7 +140,7 @@ class ByteTrack:
             # The Hungarian algorithm is used for performing the assignment between the tracks and detections
             # from DHigh, as such, it expects a square matrix, so a square matrix we shall provide.
             DHigh_ious = self.__max_dim_pad(DHigh_ious)
-            DHigh_match_indexes, _ = hungarian_solver(-DHigh_ious)
+            DHigh_match_indexes, _ = hungarian_solver(1.0-DHigh_ious)
 
             # discard assignments where either the rows or cols index is more than the row and col size of the
             # DHigh_ious since the the DHigh_ious matrix has the potential of being non-square.
@@ -165,7 +165,7 @@ class ByteTrack:
             DLow_ious = torch.stack(DLow_ious, dim=0)
             DLow_ious = self.__max_dim_pad(DLow_ious)
             # match tracks from TRemain to DLow
-            DLow_match_indexes, _ = hungarian_solver(-DLow_ious)
+            DLow_match_indexes, _ = hungarian_solver(1.0-DLow_ious)
             DLow_match_indexes = self.__filter_invalid_assignments(
                 DLow_match_indexes, TRemain_indexes.shape[0], DLow.shape[0]
             )
